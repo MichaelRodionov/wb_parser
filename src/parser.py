@@ -159,7 +159,7 @@ class WBParser:
                     else:
                         return f'Error: {brand_products}'
             return products
-        return f'{banners}'
+        return f'Error: {banners}'
 
 
 # ----------------------------------------------------------------
