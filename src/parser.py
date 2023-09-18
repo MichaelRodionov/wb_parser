@@ -6,13 +6,29 @@ from requests import Response
 
 # ----------------------------------------------------------------
 class WBParser:
-    def __init__(self, proxy_host=None, proxy_port=None):
-        self.url: str = (
-            'https://banners-website.wildberries.ru/'
-            'public/v1/banners?urltype=1024&apptype=1&displaytype=3'
-            '&longitude=37.6201&latitude=55.753737&country=1&culture=ru'
+    def __init__(self, address=None, proxy_host=None, proxy_port=None):
+        address_data: Union[Dict[int, Union[Dict[str, Union[float, str]]], Dict[str, Union[float, str]]]] = {
+            1: {'longitude': 37.643938, 'latitude': 55.732950, 'address': 'Космодамианская набережная, 52с5'},
+            2: {'longitude': 37.535071, 'latitude': 55.747622, 'address': 'Пресненская набережная, 10с2'}
+        }
+        default_data: Dict[str, Union[float, str]] = {'longitude': 37.6201, 'latitude': 55.753737, 'address': 'default'}
+
+        self.longitude: Union[float, str] = address_data.get(address, default_data)['longitude']
+        self.latitude: Union[float, str] = address_data.get(address, default_data)['latitude']
+        self.address: Union[float, str] = address_data.get(address, default_data)['address']
+
+        self.banners_url: str = (
+            f'https://banners-website.wildberries.ru/public/v1/banners?'
+            f'&longitude={self.longitude}&latitude={self.latitude}'
         )
-        self.params: dict = {
+        self.main_url_params: Dict[str, str] = {
+            'urltype': '1024',
+            'apptype': '1',
+            'displaytype': '3',
+            'country': '1',
+            'culture': 'ru'
+        }
+        self.params: Dict[str, str] = {
             'appType': '1',
             'curr': 'rub',
             'dest': '-1257786',
@@ -20,11 +36,11 @@ class WBParser:
             'sort': 'popular',
             'spp': '31'
         }
-        self.proxies: dict | None = None
+        self.proxies: Union[Dict[str, str], None] = None
 
         if proxy_host and proxy_port:
             self.proxy_url: str = f'http://{proxy_host}:{proxy_port}'
-            self.proxies = {
+            self.proxies: Union[Dict[str, str], None] = {
                 'http': self.proxy_url,
                 'https': self.proxy_url
             }
@@ -36,6 +52,7 @@ class WBParser:
         """
         request_counter = 1
         while request_counter < 4:
+            print(f'zapros: {request_counter}')
             response = requests.get(url, params=params, proxies=proxies)
             if response.status_code == 200:
                 return response
@@ -47,7 +64,7 @@ class WBParser:
         Method to get response with all banners
         """
         try:
-            response = self.make_request(url=self.url, proxies=self.proxies)
+            response = self.make_request(url=self.banners_url, params=self.main_url_params, proxies=self.proxies)
             if isinstance(response, str):
                 return response
             elif response.status_code != 200:
@@ -148,8 +165,7 @@ class WBParser:
         except Exception as e:
             return str(e)
 
-    @staticmethod
-    def prepare_response(banner, products) -> Dict[str, Union[str, List[Dict[str, str]]]]:
+    def prepare_response(self, banner, products) -> Dict[str, Union[str, List[Dict[str, str]]]]:
         """
         Method to generate response
         """
@@ -161,7 +177,8 @@ class WBParser:
             'products': products,
             'shop': 'https://www.wildberries.ru',
             'brand': banner['name'],
-            'banner_link': f'www.wildberries.ru{banner["href"]}'
+            'banner_link': f'www.wildberries.ru{banner["href"]}',
+            'address': self.address
         }
 
     def get_result(self) -> Union[List[Dict[str, Union[str, List[Dict[str, str]]]]], str]:
