@@ -1,4 +1,7 @@
+from typing import Dict, Union, List, Tuple
+
 import requests
+from requests import Response
 
 
 # ----------------------------------------------------------------
@@ -26,24 +29,39 @@ class WBParser:
                 'https': self.proxy_url
             }
 
-    def get_banners(self) -> list[dict] | str:
+    @staticmethod
+    def make_request(url, params=None, proxies=None, response=None) -> Union[Response, str]:
+        """
+        Method to make a request
+        """
+        request_counter = 1
+        while request_counter < 4:
+            response = requests.get(url, params=params, proxies=proxies)
+            if response.status_code == 200:
+                return response
+            request_counter += 1
+        return f'{response.status_code}'
+
+    def get_banners(self) -> Union[str, List[Dict[str, Union[str, int, List, Dict[str, int]]]]]:
         """
         Method to get response with all banners
         """
         try:
-            response = requests.get(self.url, proxies=self.proxies)
-            if response.status_code != 200:
+            response = self.make_request(url=self.url, proxies=self.proxies)
+            if isinstance(response, str):
+                return response
+            elif response.status_code != 200:
                 return f'{response.status_code}'
             return response.json()
         except Exception as e:
             return str(e)
 
-    def get_banner_params(self) -> list[dict] | str:
+    def get_banner_params(self) -> Union[str, List[Dict[str, str]]]:
         """
         Method to get banner params (ID, name, url)
         """
         banners = self.get_banners()
-        if type(banners) != str:
+        if not isinstance(banners, str):
             return [
                 {
                     'UID': banner['UID'],
@@ -53,40 +71,44 @@ class WBParser:
             ]
         return f'{banners}'
 
-    def promotions_request(self, promotions_data) -> tuple | str:
+    def promotions_request(self, promotions_data) -> Union[Tuple[str, str], str]:
         """
         Method to get preset and bucket params for promotions products
         """
         url = f'https://static-basket-01.wb.ru/vol0/data{promotions_data["href"].split("?")[0]}-v3.json'
         try:
-            response = requests.get(url, proxies=self.proxies)
+            response = self.make_request(url=url, proxies=self.proxies)
             if response.status_code != 200:
                 return f'{response.status_code}'
-            else:
-                return response.json()['promo']['id'], response.json()['promo']['shardKey'].split('/')[-1]
+            return response.json()['promo']['id'], response.json()['promo']['shardKey'].split('/')[-1]
         except Exception as e:
             return str(e)
 
-    def promotions_products_request(self, banner) -> list | str:
+    def promotions_products_request(self, banner) -> Union[str, List[str]]:
         """
         Method to get all promotions products
         """
-        preset, bucket = self.promotions_request(banner)
+        prom_params = self.promotions_request(banner)
+        if not isinstance(prom_params, tuple):
+            return prom_params
+        preset, bucket = prom_params[0], prom_params[1]
         url = (
             f'https://search.wb.ru/promo/'
             f'{bucket}/catalog?preset={preset}'
             f'&regions=80,38,83,4,64,33,68,70,30,40,86,75,69,1,31,66,110,48,22,71,114'
         )
         try:
-            response = requests.get(url, params=self.params, proxies=self.proxies)
+            response = self.make_request(url=url, params=self.params, proxies=self.proxies)
             if response.status_code != 200:
                 return f'{response.status_code}'
-            else:
-                return [f'https://www.wildberries.ru/catalog/{product["id"]}/detail.aspx' for product in response.json()['data']['products']]
+            return [
+                f'https://www.wildberries.ru/catalog/{product["id"]}/detail.aspx'
+                for product in response.json()['data']['products']
+            ]
         except Exception as e:
             return str(e)
 
-    def brands_request(self, brands_data, fsupplier=None) -> tuple | str:
+    def brands_request(self, brands_data, fsupplier=None) -> Union[Tuple[str, str], str]:
         """
         Method to get brand and fsupplier params for brands products
         """
@@ -95,71 +117,76 @@ class WBParser:
         if '?' in brand:
             url = f'https://static.wbstatic.net/data/brands/{brand.split("?")[0]}.json'
         try:
-            response = requests.get(url, proxies=self.proxies)
+            response = self.make_request(url=url, proxies=self.proxies)
             if response.status_code != 200:
                 return f'{response.status_code}'
-            else:
-                if 'fsupplier' in brands_data['href']:
-                    fsupplier = brands_data['href'].split('fsupplier')[1].split('/')[0].split('&')[0]
-                return response.json()['id'], fsupplier
+            elif 'fsupplier' in brands_data['href']:
+                fsupplier = brands_data['href'].split('fsupplier')[1].split('/')[0].split('&')[0]
+            return response.json()['id'], fsupplier
         except Exception as e:
             return str(e)
 
-    def brand_products_request(self, banner) -> list | str:
+    def brand_products_request(self, banner) -> Union[str, List[str]]:
         """
         Method to get all brands products
         """
-        brand, fsupplier = self.brands_request(banner)
+        brand_params = self.brands_request(banner)
+        if not isinstance(brand_params, tuple):
+            return brand_params
+        brand, fsupplier = brand_params[0], brand_params[1]
+        url = f'https://catalog.wb.ru/brands/p/catalog?brand={brand}'
         if fsupplier:
-            url = f'https://catalog.wb.ru/brands/p/catalog?brand={brand}&fsupplier{fsupplier}'
-        else:
-            url = f'https://catalog.wb.ru/brands/p/catalog?brand={brand}'
+            url = f'{url}&fsupplier{fsupplier}'
         try:
-            response = requests.get(url, params=self.params, proxies=self.proxies)
+            response = self.make_request(url=url, params=self.params, proxies=self.proxies)
             if response.status_code != 200:
                 return f'{response.status_code}'
-            return [f'https://www.wildberries.ru/catalog/{product["id"]}/detail.aspx' for product in response.json()['data']['products']]
+            return [
+                f'https://www.wildberries.ru/catalog/{product["id"]}/detail.aspx'
+                for product in response.json()['data']['products']
+            ]
         except Exception as e:
             return str(e)
 
     @staticmethod
-    def prepare_response(banner, products) -> dict:
+    def prepare_response(banner, products) -> Dict[str, Union[str, List[Dict[str, str]]]]:
         """
         Method to generate response
         """
         return {
-            'Площадка': 'Wildberries',
-            'ID баннера': banner['UID'],
-            'Название рекламного продукта': 'Баннер',
-            'Расположение на странице': 'Главная страница',
-            'SKU': products,
-            'Магазин': 'www.wildberries.ru',
-            'Бренд': banner['name'],
-            'Ссылка на креатив': f'www.wildberries.ru{banner["href"]}'
+            'platform': 'Wildberries',
+            'banner_ID': banner['UID'],
+            'ad_product': 'Баннер',
+            'ad_place': 'Главная страница',
+            'products': products,
+            'shop': 'https://www.wildberries.ru',
+            'brand': banner['name'],
+            'banner_link': f'www.wildberries.ru{banner["href"]}'
         }
 
-    def get_result(self) -> list[dict] | str:
+    def get_result(self) -> Union[List[Dict[str, Union[str, List[Dict[str, str]]]]], str]:
         """
         Method to get result
         """
         products = []
         banners = self.get_banner_params()
-        if type(banners) != str:
-            for banner in banners:
-                if banner['href'].split('/')[1] == 'promotions':
-                    promotion_products = self.promotions_products_request(banner)
-                    if type(promotion_products) != str:
-                        products.append(self.prepare_response(banner, promotion_products))
-                    else:
-                        return f'Error: {promotion_products}'
-                elif banner['href'].split('/')[1] == 'brands':
-                    brand_products = self.brand_products_request(banner)
-                    if type(brand_products) != str:
-                        products.append(self.prepare_response(banner, brand_products))
-                    else:
-                        return f'Error: {brand_products}'
-            return products
-        return f'Error: {banners}'
+        if isinstance(banners, str):
+            return f'Error: {banners}'
+        for banner in banners:
+            href_prefix = banner['href'].split('/')[1]
+            if href_prefix == 'promotions':
+                promotion_products = self.promotions_products_request(banner)
+                if not isinstance(promotion_products, str):
+                    banner_prom_result = self.prepare_response(banner, promotion_products)
+                    if banner_prom_result['products']:
+                        products.append(banner_prom_result)
+            elif href_prefix == 'brands':
+                brand_products = self.brand_products_request(banner)
+                if not isinstance(brand_products, str):
+                    banner_brand_result = self.prepare_response(banner, brand_products)
+                    if banner_brand_result['products']:
+                        products.append(banner_brand_result)
+        return products
 
 
 # ----------------------------------------------------------------
