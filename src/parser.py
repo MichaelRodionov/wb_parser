@@ -46,7 +46,6 @@ class WBParser:
             proxy_url = f'http://{random.choice(self.proxies)}'
             return {'http': proxy_url, 'https': proxy_url}
 
-    # @staticmethod
     def make_request(self, url, params=None, response=None) -> Union[Response, str]:
         """
         Method to make a request
