@@ -1,3 +1,4 @@
+import random
 from typing import Dict, Union, List, Tuple
 
 import requests
@@ -6,7 +7,7 @@ from requests import Response
 
 # ----------------------------------------------------------------
 class WBParser:
-    def __init__(self, address=None, proxy_host=None, proxy_port=None):
+    def __init__(self, address=None):
         address_data: Dict[str, Dict[str, float]] = {
             'Космодамианская наб., 52с5': {'longitude': 37.643938, 'latitude': 55.732950},
             'Пресненская наб., 10 стр2': {'longitude': 37.535071, 'latitude': 55.747622},
@@ -35,23 +36,27 @@ class WBParser:
             'sort': 'popular',
             'spp': '31'
         }
-        self.proxies: Union[Dict[str, str], None] = None
+        self.proxies: List[str] = []
 
-        if proxy_host and proxy_port:
-            self.proxy_url: str = f'http://{proxy_host}:{proxy_port}'
-            self.proxies: Union[Dict[str, str], None] = {
-                'http': self.proxy_url,
-                'https': self.proxy_url
+    def get_random_proxies(self) -> Union[Dict[str, str], None]:
+        """
+        Method to get random proxies
+        """
+        if self.proxies:
+            proxy_url = f'http://{random.choice(self.proxies)}'
+            return {
+                'http': proxy_url,
+                'https': proxy_url
             }
 
-    @staticmethod
-    def make_request(url, params=None, proxies=None, response=None) -> Union[Response, str]:
+    # @staticmethod
+    def make_request(self, url, params=None, response=None) -> Union[Response, str]:
         """
         Method to make a request
         """
         request_counter = 1
         while request_counter < 4:
-            response = requests.get(url, params=params, proxies=proxies)
+            response = requests.get(url, params=params, proxies=self.get_random_proxies())
             if response.status_code == 200:
                 return response
             request_counter += 1
@@ -62,7 +67,7 @@ class WBParser:
         Method to get response with all banners
         """
         try:
-            response = self.make_request(url=self.banners_url, params=self.main_url_params, proxies=self.proxies)
+            response = self.make_request(url=self.banners_url, params=self.main_url_params)
             if isinstance(response, str):
                 return response
             elif response.status_code != 200:
@@ -92,7 +97,7 @@ class WBParser:
         """
         url = f'https://static-basket-01.wb.ru/vol0/data{promotions_data["href"].split("?")[0]}-v3.json'
         try:
-            response = self.make_request(url=url, proxies=self.proxies)
+            response = self.make_request(url=url)
             if response.status_code != 200:
                 return f'{response.status_code}'
             return response.json()['promo']['id'], response.json()['promo']['shardKey'].split('/')[-1]
@@ -113,7 +118,7 @@ class WBParser:
             f'&regions=80,38,83,4,64,33,68,70,30,40,86,75,69,1,31,66,110,48,22,71,114'
         )
         try:
-            response = self.make_request(url=url, params=self.params, proxies=self.proxies)
+            response = self.make_request(url=url, params=self.params)
             if response.status_code != 200:
                 return f'{response.status_code}'
             return [
@@ -132,7 +137,7 @@ class WBParser:
         if '?' in brand:
             url = f'https://static.wbstatic.net/data/brands/{brand.split("?")[0]}.json'
         try:
-            response = self.make_request(url=url, proxies=self.proxies)
+            response = self.make_request(url=url)
             if response.status_code != 200:
                 return f'{response.status_code}'
             elif 'fsupplier' in brands_data['href']:
@@ -153,7 +158,7 @@ class WBParser:
         if fsupplier:
             url = f'{url}&fsupplier{fsupplier}'
         try:
-            response = self.make_request(url=url, params=self.params, proxies=self.proxies)
+            response = self.make_request(url=url, params=self.params)
             if response.status_code != 200:
                 return f'{response.status_code}'
             return [
