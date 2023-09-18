@@ -36,7 +36,7 @@ class WBParser:
             'sort': 'popular',
             'spp': '31'
         }
-        self.proxies: List[str] = []
+        self.proxies: List[Union[str, None]] = []
 
     def get_random_proxies(self) -> Union[Dict[str, str], None]:
         """
@@ -44,10 +44,7 @@ class WBParser:
         """
         if self.proxies:
             proxy_url = f'http://{random.choice(self.proxies)}'
-            return {
-                'http': proxy_url,
-                'https': proxy_url
-            }
+            return {'http': proxy_url, 'https': proxy_url}
 
     # @staticmethod
     def make_request(self, url, params=None, response=None) -> Union[Response, str]:
