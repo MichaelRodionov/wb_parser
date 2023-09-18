@@ -7,15 +7,14 @@ from requests import Response
 # ----------------------------------------------------------------
 class WBParser:
     def __init__(self, address=None, proxy_host=None, proxy_port=None):
-        address_data: Union[Dict[int, Union[Dict[str, Union[float, str]]], Dict[str, Union[float, str]]]] = {
-            1: {'longitude': 37.643938, 'latitude': 55.732950, 'address': 'Космодамианская набережная, 52с5'},
-            2: {'longitude': 37.535071, 'latitude': 55.747622, 'address': 'Пресненская набережная, 10с2'}
+        address_data: Dict[str, Dict[str, float]] = {
+            'Космодамианская наб., 52с5': {'longitude': 37.643938, 'latitude': 55.732950},
+            'Пресненская наб., 10 стр2': {'longitude': 37.535071, 'latitude': 55.747622},
+            'default': {'longitude': 37.6201, 'latitude': 55.753737}
         }
-        default_data: Dict[str, Union[float, str]] = {'longitude': 37.6201, 'latitude': 55.753737, 'address': 'default'}
-
-        self.longitude: Union[float, str] = address_data.get(address, default_data)['longitude']
-        self.latitude: Union[float, str] = address_data.get(address, default_data)['latitude']
-        self.address: Union[float, str] = address_data.get(address, default_data)['address']
+        self.longitude: Union[float, str] = address_data.get(address, address_data['default'])['longitude']
+        self.latitude: Union[float, str] = address_data.get(address, address_data['default'])['latitude']
+        self.address: str = address if address else 'default'
 
         self.banners_url: str = (
             f'https://banners-website.wildberries.ru/public/v1/banners?'
@@ -52,7 +51,6 @@ class WBParser:
         """
         request_counter = 1
         while request_counter < 4:
-            print(f'zapros: {request_counter}')
             response = requests.get(url, params=params, proxies=proxies)
             if response.status_code == 200:
                 return response
@@ -106,7 +104,7 @@ class WBParser:
         Method to get all promotions products
         """
         prom_params = self.promotions_request(banner)
-        if not isinstance(prom_params, tuple):
+        if not isinstance(prom_params, tuple) or prom_params == 'error':
             return prom_params
         preset, bucket = prom_params[0], prom_params[1]
         url = (
@@ -186,24 +184,29 @@ class WBParser:
         Method to get result
         """
         products = []
-        banners = self.get_banner_params()
-        if isinstance(banners, str):
-            return f'Error: {banners}'
-        for banner in banners:
-            href_prefix = banner['href'].split('/')[1]
-            if href_prefix == 'promotions':
-                promotion_products = self.promotions_products_request(banner)
-                if not isinstance(promotion_products, str):
-                    banner_prom_result = self.prepare_response(banner, promotion_products)
-                    if banner_prom_result['products']:
-                        products.append(banner_prom_result)
-            elif href_prefix == 'brands':
-                brand_products = self.brand_products_request(banner)
-                if not isinstance(brand_products, str):
-                    banner_brand_result = self.prepare_response(banner, brand_products)
-                    if banner_brand_result['products']:
-                        products.append(banner_brand_result)
-        return products
+        req_counter = 0
+        while req_counter < 10:
+            banners = self.get_banner_params()
+            if isinstance(banners, str):
+                req_counter += 1
+            elif not isinstance(banners, str):
+                for banner in banners:
+                    href_prefix = banner['href'].split('/')[1]
+                    if href_prefix == 'promotions':
+                        promotion_products = self.promotions_products_request(banner)
+                        if not isinstance(promotion_products, str):
+                            banner_prom_result = self.prepare_response(banner, promotion_products)
+                            if banner_prom_result['products']:
+                                products.append(banner_prom_result)
+                    elif href_prefix == 'brands':
+                        brand_products = self.brand_products_request(banner)
+                        if not isinstance(brand_products, str):
+                            banner_brand_result = self.prepare_response(banner, brand_products)
+                            if banner_brand_result['products']:
+                                products.append(banner_brand_result)
+                return products
+            if req_counter == 10:
+                return products
 
 
 # ----------------------------------------------------------------
